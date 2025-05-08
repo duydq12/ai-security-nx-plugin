@@ -1,0 +1,77 @@
+#pragma once
+
+#include <onnxruntime_cxx_api.h>
+#include <opencv2/opencv.hpp>
+
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <numeric>
+#include <string>
+#include <vector>
+#include <memory>
+#include <chrono>
+#include <random>
+#include <unordered_map>
+#include <thread>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <nx/sdk/helpers/uuid_helper.h>
+#include <nx/sdk/uuid.h>
+
+#include "detection.h"
+#include "frame.h"
+#include "geometry.h"
+
+namespace nx_meta_plugin {
+    class YOLO11Detector {
+    public:
+        explicit YOLO11Detector(std::filesystem::path modelPath);
+
+        void ensureInitialized();
+
+        bool isTerminated() const;
+
+        void terminate();
+
+        DetectionList run(const Frame &frame);
+//        DetectionList run(const cv::Mat &frame);
+
+    private:
+        void loadModel();
+
+        DetectionList runImpl(const Frame &frame);
+//        DetectionList runImpl(const cv::Mat &frame);
+
+        cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape);
+
+        DetectionList
+        postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
+                    const std::vector<Ort::Value> &outputTensors, float confThreshold = 0.4f,
+                    float iouThreshold = 0.45f);
+
+    private:
+        bool m_netLoaded = false;
+        bool m_terminated = false;
+        bool useGPU = false;
+        std::filesystem::path m_modelPath;
+
+        Ort::Env env{nullptr};                         // ONNX Runtime environment
+        Ort::SessionOptions sessionOptions{nullptr};   // Session options for ONNX Runtime
+        Ort::Session session{nullptr};                 // ONNX Runtime session for running inference
+        bool isDynamicInputShape{};                    // Flag indicating if input shape is dynamic
+        cv::Size inputImageShape;                      // Expected input image shape for the model
+
+        // Vectors to hold allocated input and output node names
+        std::vector<Ort::AllocatedStringPtr> inputNodeNameAllocatedStrings;
+        std::vector<const char *> inputNames;
+        std::vector<Ort::AllocatedStringPtr> outputNodeNameAllocatedStrings;
+        std::vector<const char *> outputNames;
+
+        size_t numInputNodes, numOutputNodes;          // Number of input and output nodes in the model
+        nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
+    };
+}

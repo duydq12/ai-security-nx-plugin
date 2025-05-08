@@ -1,0 +1,7 @@
+[requires]
+onnxruntime/1.18.1  # Or the specific version you need. Check ConanCenter for versions
+                    # compatible or built with tooling closer to Conan 1.6 if you face issues,
+                    # though newer packages often still work.
+
+[generators]
+cmake_find_package   # Creates FindONNXRuntime.cmake (or similar)
