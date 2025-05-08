@@ -77,31 +77,6 @@ find_package(onnxruntime REQUIRED)
 # find_path(ONNX_RUNTIME_SESSION_INCLUDE_DIRS onnxruntime_cxx_api.h HINTS /root/onnxruntime/onnxruntime-linux-x64-1.18.1/include)
 # find_library(ONNX_RUNTIME_LIB onnxruntime HINTS /root/onnxruntime/onnxruntime-linux-x64-1.18.1/lib)
 include_directories("include/")
-# Download model files
-set(model_file_names
-        MobileNetSSD.caffemodel
-        MobileNetSSD.prototxt
-        )
-foreach(model_file_name IN LISTS model_file_names)
-    set(model_file "${CMAKE_BINARY_DIR}/${model_file_name}")
-    list(APPEND model_files "${model_file}")
-    if(NOT EXISTS "${model_file}")
-        message("Downloading ${model_file_name}")
-        file(DOWNLOAD
-                "${ARTIFACTORY_URL}/opencv_object_detection_analytics_plugin/models/${model_file_name}"
-                "${model_file}"
-                SHOW_PROGRESS
-                STATUS DOWNLOAD_STATUS
-                )
-        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-        if(NOT STATUS_CODE EQUAL 0)
-            file(REMOVE "${model_file}")
-            message(FATAL_ERROR "Error downloading ${ARTIFACTORY_URL}/opencv_object_detection_analytics_plugin/models/${model_file_name}")
-        endif()
-    elseif()
-        message("${model_file_name} already exits")
-    endif()
-endforeach()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
