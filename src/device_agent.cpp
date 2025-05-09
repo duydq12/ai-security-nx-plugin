@@ -69,10 +69,10 @@ namespace nx_meta_plugin {
             "objectTypeId": ")json" + kDogObjectType + R"json("
         },
         {
-            "objectTypeId": ")json" + kCAObjectType + R"json("
+            "objectTypeId": ")json" + kConganObjectType + R"json("
         },
         {
-            "objectTypeId": ")json" + kPNObjectType + R"json("
+            "objectTypeId": ")json" + kPhamnhanObjectType + R"json("
         },
         {
             "objectTypeId": ")json" + kUnknownObjectType + R"json("
@@ -187,9 +187,9 @@ namespace nx_meta_plugin {
             else if (detection->classLabel == "dog")
                 objectMetadata->setTypeId(kDogObjectType);
             else if (detection->classLabel == "CA")
-                objectMetadata->setTypeId(kCAObjectType);
+                objectMetadata->setTypeId(kConganObjectType);
             else if (detection->classLabel == "PN")
-                objectMetadata->setTypeId(kPNObjectType);
+                objectMetadata->setTypeId(kPhamnhanObjectType);
             else if (detection->classLabel == "Unknown")
                 objectMetadata->setTypeId(kUnknownObjectType);
             // There is no "else", because only the detections with those types are generated.
