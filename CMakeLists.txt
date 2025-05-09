@@ -123,6 +123,7 @@ target_compile_definitions(nx_sdk PRIVATE NX_PLUGIN_API=${API_EXPORT_MACRO})
 # Define opencv_object_detection_analytics_plugin lib, dynamic, depends on nx_kit and nx_sdk.
 
 set(pluginHeaders
+        include/classifer.h
         include/detection.h
         include/device_agent.h
         include/engine.h
@@ -131,16 +132,19 @@ set(pluginHeaders
         include/geometry.h
         include/object_detector.h
         include/plugin.h
+        include/yolo11_classifier.h
         include/yolo11_detector.h
         )
 
 set(pluginSrc ${pluginHeaders}
+        src/classifier.cpp
         src/detection.cpp
         src/device_agent.cpp
         src/engine.cpp
         src/geometry.cpp
         src/object_detector.cpp
         src/plugin.cpp
+        src/yolo11_classifier.cpp
         src/yolo11_detector.cpp
         )
 

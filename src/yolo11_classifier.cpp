@@ -3,21 +3,21 @@
 
 #include <opencv2/core.hpp>
 
-#include "yolo11_detector.h"
+#include "yolo11_classifier.h"
 #include "exceptions.h"
 
 namespace nx_meta_plugin {
     using namespace std::string_literals;
     using namespace cv;
 
-    YOLO11Detector::YOLO11Detector() {
+    YOLO11Classifier::YOLO11Classifier() {
     }
 
 /**
 * Load the model if it is not loaded, do nothing otherwise. In case of errors terminate the
 * plugin and throw a specialized exception.
 */
-    void YOLO11Detector::ensureInitialized(std::filesystem::path modelPath) {
+    void YOLO11Classifier::ensureInitialized(std::filesystem::path modelPath) {
         if (isTerminated()) {
             throw ObjectDetectorIsTerminatedError(
                     "Object detector initialization error: object detector is terminated.");
@@ -38,15 +38,15 @@ namespace nx_meta_plugin {
         }
     }
 
-    bool YOLO11Detector::isTerminated() const {
+    bool YOLO11Classifier::isTerminated() const {
         return m_terminated;
     }
 
-    void YOLO11Detector::terminate() {
+    void YOLO11Classifier::terminate() {
         m_terminated = true;
     }
 
-    DetectionList YOLO11Detector::run(const cv::Mat &frame) {
+    std::string YOLO11Classifier::run(const cv::Mat &frame) {
         if (isTerminated())
             throw ObjectDetectorIsTerminatedError("Detection error: object detector is terminated.");
 
@@ -63,7 +63,7 @@ namespace nx_meta_plugin {
         }
     }
 
-    void YOLO11Detector::loadModel(std::filesystem::path modelPath) {
+    void YOLO11Classifier::loadModel(std::filesystem::path modelPath) {
         // Initialize ONNX Runtime environment with warning level
         env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNX_DETECTION");
         sessionOptions = Ort::SessionOptions();
@@ -90,9 +90,9 @@ namespace nx_meta_plugin {
         }
 
         // Load the ONNX model into the session
-        modelPath = modelPath / std::filesystem::path("yolov11n.onnx");
+        modelPath = modelPath / std::filesystem::path("yolov11n-classify.onnx");
         std::string modelPathStr{modelPath.u8string()};
-        std::cout << "Model path: " << modelPathStr << std::endl;
+        std::cout << "Classification model path: " << modelPathStr << std::endl;
 #ifdef _WIN32
         std::wstring w_modelPath(modelPathStr.begin(), m_modelPath.end());
         session = Ort::Session(env, w_modelPath.c_str(), sessionOptions);
@@ -131,20 +131,18 @@ namespace nx_meta_plugin {
         // Get the number of input and output nodes
         numInputNodes = session.GetInputCount();
         numOutputNodes = session.GetOutputCount();
-        std::cout << "Detections model loaded successfully with " << numInputNodes << " input nodes and "
-                  << numOutputNodes
+        std::cout << "Classification model loaded successfully with " << numInputNodes << " input nodes and " << numOutputNodes
                   << " output nodes." << std::endl;
     }
 
 // Preprocess function implementation
     cv::Mat
-    YOLO11Detector::preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape) {
+    YOLO11Classifier::preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape) {
         cv::Mat resizedImage;
         // Resize and pad the image using letterBox utility
         letterBox(image, resizedImage, inputImageShape, cv::Scalar(114, 114, 114), isDynamicInputShape,
                   false, true,
                   32);
-
         // Update input tensor shape based on resized image dimensions
         inputTensorShape[2] = resizedImage.rows;
         inputTensorShape[3] = resizedImage.cols;
@@ -158,7 +156,7 @@ namespace nx_meta_plugin {
         // Split the image into separate channels and store in the blob
         std::vector<cv::Mat> chw(resizedImage.channels());
         for (int i = 0; i < resizedImage.channels(); ++i) {
-            chw[i] = cv::Mat(resizedImage.rows, resizedImage.cols, CV_32FC1,
+            chw[2 - i] = cv::Mat(resizedImage.rows, resizedImage.cols, CV_32FC1,
                              blob + i * resizedImage.cols * resizedImage.rows);
         }
         cv::split(resizedImage, chw); // Split channels into the blob
@@ -167,14 +165,13 @@ namespace nx_meta_plugin {
     }
 
 // Postprocess function to convert raw model output into detections
-    DetectionList YOLO11Detector::postprocess(
+    std::string YOLO11Classifier::postprocess(
             const cv::Size &originalImageSize,
             const cv::Size &resizedImageShape,
             const std::vector<Ort::Value> &outputTensors,
             float confThreshold,
             float iouThreshold
     ) {
-        DetectionList detections;
         const float *rawOutput = outputTensors[0].GetTensorData<float>(); // Extract raw output data from the first output tensor
         const std::vector<int64_t> outputShape = outputTensors[0].GetTensorTypeAndShapeInfo().GetShape();
 
@@ -184,14 +181,14 @@ namespace nx_meta_plugin {
 
         // Early exit if no detections
         if (num_detections == 0) {
-            return detections;
+            return "Unknown";
         }
 
         // Calculate number of classes based on output shape
         const int numClasses = static_cast<int>(num_features) - 4;
         if (numClasses <= 0) {
             // Invalid number of classes
-            return detections;
+            return "Unknown";
         }
 
         // Reserve memory for efficient appending
@@ -263,33 +260,21 @@ namespace nx_meta_plugin {
         std::vector<int> indices;
         NMSBoxes(nms_boxes, confs, confThreshold, iouThreshold, indices);
 
-        // Collect filtered detections into the result vector
-        detections.reserve(indices.size());
-        for (const int idx : indices) {
-            const std::string classLabel = kClasses[(size_t) classIds[idx]];
-            bool oneOfRequiredClasses = std::find(
-                    kClassesToDetect.begin(), kClassesToDetect.end(), classLabel) != kClassesToDetect.end();
-            if (oneOfRequiredClasses) {
-                detections.emplace_back(std::make_shared<Detection>(
-                        Detection{
-                                cvRectToNxRect(boxes[idx], originalImageSize.width, originalImageSize.height),
-                                kClasses[(size_t) classIds[idx]],
-                                confs[idx],
-                                m_trackId
-                        }
-                ));
-            }
+        if (!indices.empty()) {
+            const std::string classLabel = kClassesToClassification[(size_t) classIds[0]];
+            return classLabel;
         }
 
-        return detections;
+        return "Unknown";
     }
 
-    DetectionList YOLO11Detector::runImpl(const cv::Mat &frame) {
+    std::string YOLO11Classifier::runImpl(const cv::Mat &frame) {
         if (isTerminated()) {
             throw ObjectDetectorIsTerminatedError(
                     "Object detection error: object detector is terminated.");
         }
 
+//        const Mat image = frame.cvMat;
         const Mat image = frame;
 
         float *blobPtr = nullptr; // Pointer to hold preprocessed image data
@@ -298,7 +283,6 @@ namespace nx_meta_plugin {
 
         // Preprocess the image and obtain a pointer to the blob
         cv::Mat preprocessedImage = preprocess(image, blobPtr, inputTensorShape);
-
         // Compute the total number of elements in the input tensor
         size_t inputTensorSize = vectorProduct(inputTensorShape);
 
@@ -334,8 +318,8 @@ namespace nx_meta_plugin {
                                    static_cast<int>(inputTensorShape[2]));
 
         // Postprocess the output tensors to obtain detections
-        DetectionList detections = postprocess(image.size(), resizedImageShape, outputTensors);
-        // NX_PRINT << "size of DetectionList " << detections.size();
-        return detections; // Return the vector of detections
+        std::string classLabel = postprocess(image.size(), resizedImageShape, outputTensors);
+//        NX_PRINT << "Class label is " << classLabel;
+        return classLabel;
     }
 }

@@ -10,7 +10,7 @@
 #include <nx/sdk/ptr.h>
 
 #include "engine.h"
-#include "yolo11_detector.h"
+#include "classifer.h"
 
 namespace nx_meta_plugin {
     class DeviceAgent : public nx::sdk::analytics::ConsumingDeviceAgent {
@@ -48,6 +48,9 @@ namespace nx_meta_plugin {
         const std::string kPersonObjectType = "nx.base.Person";
         const std::string kCatObjectType = "nx.base.Cat";
         const std::string kDogObjectType = "nx.base.Dog";
+        const std::string kCAObjectType = "nx.base.CA";
+        const std::string kPNObjectType = "nx.base.PN";
+        const std::string kUnknownObjectType = "nx.base.Unknown";
         const std::string kNewTrackEventType = "nx.sample.newTrack";
 
         /** Length of the the track (in frames). The value was chosen arbitrarily. */
@@ -59,7 +62,7 @@ namespace nx_meta_plugin {
     private:
         bool m_terminated = false;
         bool m_terminatedPrevious = false;
-        const std::unique_ptr<YOLO11Detector> m_objectDetector;
+        const std::unique_ptr<Classifier> m_objectDetector;
         nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
         int m_frameIndex = 0; /**< Used for generating the detection in the right place. */
         int m_trackIndex = 0; /**< Used in the description of the events. */

@@ -19,17 +19,13 @@
 #include <string>
 #include <vector>
 
-#include <nx/sdk/helpers/uuid_helper.h>
-#include <nx/sdk/uuid.h>
-
 #include "detection.h"
-#include "frame.h"
 #include "geometry.h"
 
 namespace nx_meta_plugin {
-    class YOLO11Detector {
+    class YOLO11Classifier {
     public:
-        explicit YOLO11Detector();
+        explicit YOLO11Classifier();
 
         void ensureInitialized(std::filesystem::path modelPath);
 
@@ -37,18 +33,18 @@ namespace nx_meta_plugin {
 
         void terminate();
 
-        DetectionList run(const cv::Mat &frame);
+        std::string run(const cv::Mat &frame);
 
     private:
         void loadModel(std::filesystem::path modelPath);
 
-        DetectionList runImpl(const cv::Mat &frame);
+        std::string runImpl(const cv::Mat &frame);
 
         cv::Mat preprocess(const cv::Mat &image, float *&blob, std::vector<int64_t> &inputTensorShape);
 
-        DetectionList
+        std::string
         postprocess(const cv::Size &originalImageSize, const cv::Size &resizedImageShape,
-                    const std::vector<Ort::Value> &outputTensors, float confThreshold = 0.4f,
+                    const std::vector<Ort::Value> &outputTensors, float confThreshold = 0.25f,
                     float iouThreshold = 0.45f);
 
     private:
@@ -69,6 +65,5 @@ namespace nx_meta_plugin {
         std::vector<const char *> outputNames;
 
         size_t numInputNodes, numOutputNodes;          // Number of input and output nodes in the model
-        nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
     };
 }

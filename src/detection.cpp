@@ -18,5 +18,6 @@ namespace nx_meta_plugin {
                                             "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
                                             "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
                                             "scissors", "teddy bear", "hair drier", "toothbrush"};
-    const std::vector<std::string> kClassesToDetect{"cat", "dog", "person"};
+    const std::vector<std::string> kClassesToDetect{"person"};
+    const std::vector<std::string> kClassesToClassification{"CA", "PN"};
 }
