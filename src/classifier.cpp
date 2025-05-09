@@ -74,14 +74,15 @@ namespace nx_meta_plugin {
 
         DetectionList detections = m_yolo11_detector.run(image);
         const cv::Size originalImageSize = image.size();
-        for (const auto detection : detections) {
-            cv::Rect boundingBox = nxRectToCvRect(detection->boundingBox, originalImageSize.width, originalImageSize.height);
+        if (!detections.empty()){
+            cv::Rect boundingBox = nxRectToCvRect(detections[0]->boundingBox, originalImageSize.width, originalImageSize.height);
             cv::Mat cropped_image = image(boundingBox).clone();
             cv::Mat cropped_image_resize;
             cv::resize(cropped_image, cropped_image_resize, cv::Size(640, 640));
             std::string classLabel = m_yolo11_classifier.run(image);
-            detection->classLabel = classLabel;
+            detections[0]->classLabel = classLabel;
+            return detections;
         }
-        return detections;
+        return {};
     }
 }
