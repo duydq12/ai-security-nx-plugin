@@ -6,7 +6,6 @@
 #include <exception>
 
 #include <opencv2/core.hpp>
-#include <opencv2/dnn/dnn.hpp>
 
 #include <nx/sdk/analytics/helpers/event_metadata.h>
 #include <nx/sdk/analytics/helpers/event_metadata_packet.h>
@@ -70,15 +69,6 @@ namespace nx_meta_plugin {
         },
         {
             "objectTypeId": ")json" + kDogObjectType + R"json("
-        },
-        {
-            "objectTypeId": ")json" + kConganObjectType + R"json("
-        },
-        {
-            "objectTypeId": ")json" + kPhamnhanObjectType + R"json("
-        },
-        {
-            "objectTypeId": ")json" + kUnknownObjectType + R"json("
         }
     ]
 }
@@ -189,12 +179,16 @@ namespace nx_meta_plugin {
                 objectMetadata->setTypeId(kCatObjectType);
             else if (detection->classLabel == "dog")
                 objectMetadata->setTypeId(kDogObjectType);
-            else if (detection->classLabel == "CA")
-                objectMetadata->setTypeId(kConganObjectType);
-            else if (detection->classLabel == "PN")
-                objectMetadata->setTypeId(kPhamnhanObjectType);
-            else if (detection->classLabel == "Unknown")
-                objectMetadata->setTypeId(kUnknownObjectType);
+            else if (detection->classLabel == "CA") {
+                objectMetadata->setTypeId(kPersonObjectType);
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "CA"));
+            } else if (detection->classLabel == "PN") {
+                objectMetadata->setTypeId(kPersonObjectType);
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "PN"));
+            } else if (detection->classLabel == "Unknown") {
+                objectMetadata->setTypeId(kPersonObjectType);
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "Unknown"));
+            }
             // There is no "else", because only the detections with those types are generated.
 
             objectMetadataPacket->addItem(objectMetadata.get());
