@@ -39,6 +39,5 @@ namespace nx_meta_plugin {
         bool m_terminated = false;
         const std::filesystem::path m_modelPath;
         std::unique_ptr<cv::dnn::Net> m_net;
-        nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
     };
 }

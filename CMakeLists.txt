@@ -8,35 +8,35 @@ set(metadataSdkVersion "5.1.1.37512")
 set(metadataSdkDir "" CACHE PATH
         "Path to unpacked VMS Metadata SDK zip. Tested with version ${metadataSdkVersion}.")
 
-if(metadataSdkDir STREQUAL "")
+if (metadataSdkDir STREQUAL "")
     message(FATAL_ERROR "metadataSdkDir cache variable is undefined.")
-endif()
+endif ()
 
-if(NOT DEFINED ARTIFACTORY_URL)
+if (NOT DEFINED ARTIFACTORY_URL)
     set(ARTIFACTORY_URL "https://artifactory.nxvms.dev/artifactory/artifacts/nx_open_integrations")
-endif()
+endif ()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
 
 # Download OpenCV automatically using Conan
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
+if (NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
     message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
     file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
             "${CMAKE_BINARY_DIR}/conan.cmake")
-endif()
+endif ()
 include(${CMAKE_BINARY_DIR}/conan.cmake)
 
-if(WIN32)
+if (WIN32)
     set(CONAN_VS_RUNTIME_MT_SETTING "compiler.runtime=MT")
-endif()
+endif ()
 set(OPENCV_OPTIONS
         opencv:parallel=False
         opencv:contrib=True
         opencv:contrib_freetype=False
         opencv:contrib_sfm=False
-        opencv:with_jpeg=False
-        opencv:with_png=False
+        opencv:with_jpeg=libjpeg
+        opencv:with_png=True
         opencv:with_tiff=False
         opencv:with_jpeg2000=False
         opencv:with_openexr=False
@@ -47,31 +47,45 @@ set(OPENCV_OPTIONS
         opencv:with_cublas=False
         opencv:dnn=True
         opencv:with_ffmpeg=False
-        )
+)
 
-if(UNIX)
+if (UNIX)
     set(OPENCV_OPTIONS
             ${OPENCV_OPTIONS}
             opencv:fPIC=True
             opencv:with_gtk=False
             opencv:with_cufft=False
             opencv:with_v4l=False
-            )
-endif()
+    )
+endif ()
 
 conan_cmake_run(BUILD_TYPE "Release")
 conan_cmake_configure(REQUIRES opencv/4.1.2
         GENERATORS cmake_find_package
         OPTIONS ${OPENCV_OPTIONS}
         SETTINGS ${CONAN_VS_RUNTIME_MT_SETTING}
-        )
+)
 
 conan_cmake_install(PATH_OR_REFERENCE .
         OPTIONS ${OPENCV_OPTIONS}
         SETTINGS ${CONAN_VS_RUNTIME_MT_SETTING}
         BUILD missing
-        )
+)
 
+#set(ONNXRUNTIME_OPTIONS
+#        onnxruntime:with_cuda=True
+#)
+conan_cmake_configure(REQUIRES onnxruntime/1.18.1
+        GENERATORS cmake_find_package
+        #        OPTIONS ${ONNXRUNTIME_OPTIONS}
+        SETTINGS ${CONAN_VS_RUNTIME_MT_SETTING}
+)
+
+conan_cmake_install(PATH_OR_REFERENCE .
+        #        OPTIONS ${ONNXRUNTIME_OPTIONS}
+        SETTINGS ${CONAN_VS_RUNTIME_MT_SETTING}
+        BUILD missing
+)
 find_package(OpenCV REQUIRED)
 find_package(onnxruntime REQUIRED)
 # find_path(ONNX_RUNTIME_SESSION_INCLUDE_DIRS onnxruntime_cxx_api.h HINTS /root/onnxruntime/onnxruntime-linux-x64-1.18.1/include)
@@ -84,20 +98,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(UNIX)
+if (UNIX)
     # In Linux, for the plugin .so library, set `rpath` to "$ORIGIN" and do not set `runpath`, thus
     # enabling the lookup of the dependencies in the plugin dir first.
     string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--disable-new-dtags")
-endif()
+endif ()
 set(CMAKE_SKIP_BUILD_RPATH ON)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 
-if(WIN32)
+if (WIN32)
     set(API_EXPORT_MACRO "__declspec(dllexport)")
-elseif(UNIX)
+elseif (UNIX)
     set(API_EXPORT_MACRO "__attribute__((visibility(\"default\")))")
-endif()
+endif ()
 
 #--------------------------------------------------------------------------------------------------
 # Define nx_kit lib, static.
@@ -123,7 +137,6 @@ target_compile_definitions(nx_sdk PRIVATE NX_PLUGIN_API=${API_EXPORT_MACRO})
 # Define opencv_object_detection_analytics_plugin lib, dynamic, depends on nx_kit and nx_sdk.
 
 set(pluginHeaders
-        include/classifer.h
         include/detection.h
         include/device_agent.h
         include/engine.h
@@ -133,11 +146,12 @@ set(pluginHeaders
         include/object_detector.h
         include/plugin.h
         include/yolo11_classifier.h
-        include/yolo11_detector.h
-        )
+        include/object_tracker.h
+        include/object_tracker_utils.h
+        include/visualize.h
+)
 
 set(pluginSrc ${pluginHeaders}
-        src/classifier.cpp
         src/detection.cpp
         src/device_agent.cpp
         src/engine.cpp
@@ -146,15 +160,18 @@ set(pluginSrc ${pluginHeaders}
         src/plugin.cpp
         src/yolo11_classifier.cpp
         src/yolo11_detector.cpp
-        )
+        src/object_tracker.cpp
+        src/object_tracker_utils.cpp
+)
 
 message("${OPENCV_OBJECT_DETECTION_ANALYTICS_PLUGIN_SRC}")
 add_library(opencv_object_detection_analytics_plugin SHARED ${pluginSrc})
+# add_executable(opencv_object_detection_analytics_plugin src/main.cpp ${pluginSrc})
 
 target_include_directories(opencv_object_detection_analytics_plugin PRIVATE
-        ${OPENCV_ANALYTICS_PLUGIN_SRC_DIR} 
+        ${OPENCV_ANALYTICS_PLUGIN_SRC_DIR}
         ${ONNX_RUNTIME_SESSION_INCLUDE_DIRS}
-        )
+)
 set(CMAKE_EXE_LINKER_FLAGS " -static")
 message("ONNX_RUNTIME_LIB: ${ONNX_RUNTIME_LIB}")
 target_link_libraries(opencv_object_detection_analytics_plugin
@@ -163,7 +180,7 @@ target_link_libraries(opencv_object_detection_analytics_plugin
         opencv::core opencv::flann opencv::imgproc opencv::imgcodecs opencv::dnn opencv::opencv_dnn opencv::ml
         opencv::plot opencv::opencv_features2d opencv::opencv_calib3d opencv::datasets opencv::video opencv::tracking
         onnxruntime::onnxruntime
-        )
+)
 target_compile_definitions(opencv_object_detection_analytics_plugin
         PRIVATE NX_PLUGIN_API=${API_EXPORT_MACRO}
-        )
+)

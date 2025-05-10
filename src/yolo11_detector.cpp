@@ -10,14 +10,15 @@ namespace nx_meta_plugin {
     using namespace std::string_literals;
     using namespace cv;
 
-    YOLO11Detector::YOLO11Detector() {
+    YOLO11Detector::YOLO11Detector(std::filesystem::path modelDir) :
+            m_modelDir(std::move(modelDir)) {
     }
 
 /**
 * Load the model if it is not loaded, do nothing otherwise. In case of errors terminate the
 * plugin and throw a specialized exception.
 */
-    void YOLO11Detector::ensureInitialized(std::filesystem::path modelPath) {
+    void YOLO11Detector::ensureInitialized() {
         if (isTerminated()) {
             throw ObjectDetectorIsTerminatedError(
                     "Object detector initialization error: object detector is terminated.");
@@ -26,7 +27,7 @@ namespace nx_meta_plugin {
             return;
 
         try {
-            loadModel(modelPath);
+            loadModel();
         }
         catch (const cv::Exception &e) {
             terminate();
@@ -63,7 +64,7 @@ namespace nx_meta_plugin {
         }
     }
 
-    void YOLO11Detector::loadModel(std::filesystem::path modelPath) {
+    void YOLO11Detector::loadModel() {
         // Initialize ONNX Runtime environment with warning level
         env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNX_DETECTION");
         sessionOptions = Ort::SessionOptions();
@@ -90,9 +91,9 @@ namespace nx_meta_plugin {
         }
 
         // Load the ONNX model into the session
-        modelPath = modelPath / std::filesystem::path("yolov11n.onnx");
+        std::filesystem::path modelPath = m_modelDir / std::filesystem::path("yolov11n.onnx");
         std::string modelPathStr{modelPath.u8string()};
-        std::cout << "Model path: " << modelPathStr << std::endl;
+        std::cout << "Detection model path: " << modelPathStr << std::endl;
 #ifdef _WIN32
         std::wstring w_modelPath(modelPathStr.begin(), m_modelPath.end());
         session = Ort::Session(env, w_modelPath.c_str(), sessionOptions);
@@ -131,7 +132,7 @@ namespace nx_meta_plugin {
         // Get the number of input and output nodes
         numInputNodes = session.GetInputCount();
         numOutputNodes = session.GetOutputCount();
-        std::cout << "Detections model loaded successfully with " << numInputNodes << " input nodes and "
+        std::cout << "Detection model loaded successfully with " << numInputNodes << " input nodes and "
                   << numOutputNodes
                   << " output nodes." << std::endl;
     }
@@ -265,7 +266,7 @@ namespace nx_meta_plugin {
 
         // Collect filtered detections into the result vector
         detections.reserve(indices.size());
-        for (const int idx : indices) {
+        for (const int idx: indices) {
             const std::string classLabel = kClasses[(size_t) classIds[idx]];
             bool oneOfRequiredClasses = std::find(
                     kClassesToDetect.begin(), kClassesToDetect.end(), classLabel) != kClassesToDetect.end();
@@ -275,7 +276,8 @@ namespace nx_meta_plugin {
                                 cvRectToNxRect(boxes[idx], originalImageSize.width, originalImageSize.height),
                                 kClasses[(size_t) classIds[idx]],
                                 confs[idx],
-                                m_trackId
+                                nx::sdk::Uuid() //< Will be filled with real value in ObjectTracker.
+                                // nx::sdk::UuidHelper::randomUuid()
                         }
                 ));
             }
@@ -290,14 +292,12 @@ namespace nx_meta_plugin {
                     "Object detection error: object detector is terminated.");
         }
 
-        const Mat image = frame;
-
         float *blobPtr = nullptr; // Pointer to hold preprocessed image data
         // Define the shape of the input tensor (batch size, channels, height, width)
         std::vector<int64_t> inputTensorShape = {1, 3, inputImageShape.height, inputImageShape.width};
 
         // Preprocess the image and obtain a pointer to the blob
-        cv::Mat preprocessedImage = preprocess(image, blobPtr, inputTensorShape);
+        cv::Mat preprocessedImage = preprocess(frame, blobPtr, inputTensorShape);
 
         // Compute the total number of elements in the input tensor
         size_t inputTensorSize = vectorProduct(inputTensorShape);
@@ -334,7 +334,7 @@ namespace nx_meta_plugin {
                                    static_cast<int>(inputTensorShape[2]));
 
         // Postprocess the output tensors to obtain detections
-        DetectionList detections = postprocess(image.size(), resizedImageShape, outputTensors);
+        DetectionList detections = postprocess(frame.size(), resizedImageShape, outputTensors);
         // NX_PRINT << "size of DetectionList " << detections.size();
         return detections; // Return the vector of detections
     }

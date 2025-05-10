@@ -1,0 +1,18 @@
+services:
+  clion-dev-container:
+    build: # use the Dockerfile in the current directory
+      context: .
+      dockerfile: Dockerfile
+    security_opt: # options needed for gdb debugging
+      - seccomp:unconfined
+      - apparmor:unconfined
+    ports:
+      - "7776:22" # SSH
+      - "7777:7777" # GDB Server
+    volumes:
+      - ${HOME}/.Xauthority:/home/developer/.Xauthority:rw # X11 stuff
+      - /tmp/.X11-unix:/tmp/.X11-unix # X11 stuff
+      - /dev/dri:/dev/dri #X11 stuff
+      - /dev/snd:/dev/snd #X11 stuff
+      # - ${HOME}/H_project/2025/nx_open_integrations/conan:/home/developer/.conan
+      - ${HOME}/H_project/2025/nx_open_integrations/resources:/home/developer/resources

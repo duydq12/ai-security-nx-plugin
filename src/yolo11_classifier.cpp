@@ -10,14 +10,15 @@ namespace nx_meta_plugin {
     using namespace std::string_literals;
     using namespace cv;
 
-    YOLO11Classifier::YOLO11Classifier() {
+    YOLO11Classifier::YOLO11Classifier(std::filesystem::path modelDir) :
+            m_modelDir(std::move(modelDir)) {
     }
 
 /**
 * Load the model if it is not loaded, do nothing otherwise. In case of errors terminate the
 * plugin and throw a specialized exception.
 */
-    void YOLO11Classifier::ensureInitialized(std::filesystem::path modelPath) {
+    void YOLO11Classifier::ensureInitialized() {
         if (isTerminated()) {
             throw ObjectDetectorIsTerminatedError(
                     "Object detector initialization error: object detector is terminated.");
@@ -26,7 +27,7 @@ namespace nx_meta_plugin {
             return;
 
         try {
-            loadModel(modelPath);
+            loadModel();
         }
         catch (const cv::Exception &e) {
             terminate();
@@ -63,7 +64,7 @@ namespace nx_meta_plugin {
         }
     }
 
-    void YOLO11Classifier::loadModel(std::filesystem::path modelPath) {
+    void YOLO11Classifier::loadModel() {
         // Initialize ONNX Runtime environment with warning level
         env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNX_DETECTION");
         sessionOptions = Ort::SessionOptions();
@@ -90,7 +91,7 @@ namespace nx_meta_plugin {
         }
 
         // Load the ONNX model into the session
-        modelPath = modelPath / std::filesystem::path("yolov11n-classify.onnx");
+        std::filesystem::path modelPath = m_modelDir / std::filesystem::path("yolov11n-classify.onnx");
         std::string modelPathStr{modelPath.u8string()};
         std::cout << "Classification model path: " << modelPathStr << std::endl;
 #ifdef _WIN32
@@ -131,7 +132,8 @@ namespace nx_meta_plugin {
         // Get the number of input and output nodes
         numInputNodes = session.GetInputCount();
         numOutputNodes = session.GetOutputCount();
-        std::cout << "Classification model loaded successfully with " << numInputNodes << " input nodes and " << numOutputNodes
+        std::cout << "Classification model loaded successfully with " << numInputNodes << " input nodes and "
+                  << numOutputNodes
                   << " output nodes." << std::endl;
     }
 
@@ -274,15 +276,12 @@ namespace nx_meta_plugin {
                     "Object detection error: object detector is terminated.");
         }
 
-//        const Mat image = frame.cvMat;
-        const Mat image = frame;
-
         float *blobPtr = nullptr; // Pointer to hold preprocessed image data
         // Define the shape of the input tensor (batch size, channels, height, width)
         std::vector<int64_t> inputTensorShape = {1, 3, inputImageShape.height, inputImageShape.width};
 
         // Preprocess the image and obtain a pointer to the blob
-        cv::Mat preprocessedImage = preprocess(image, blobPtr, inputTensorShape);
+        cv::Mat preprocessedImage = preprocess(frame, blobPtr, inputTensorShape);
         // Compute the total number of elements in the input tensor
         size_t inputTensorSize = vectorProduct(inputTensorShape);
 
@@ -318,7 +317,7 @@ namespace nx_meta_plugin {
                                    static_cast<int>(inputTensorShape[2]));
 
         // Postprocess the output tensors to obtain detections
-        std::string classLabel = postprocess(image.size(), resizedImageShape, outputTensors);
+        std::string classLabel = postprocess(frame.size(), resizedImageShape, outputTensors);
 //        NX_PRINT << "Class label is " << classLabel;
         return classLabel;
     }
