@@ -17,6 +17,7 @@
 #include "detection.h"
 #include "exceptions.h"
 #include "frame.h"
+#include "visualize.h"
 
 namespace nx_meta_plugin {
 
@@ -34,7 +35,9 @@ namespace nx_meta_plugin {
             std::filesystem::path pluginHomeDir) :
     // Call the DeviceAgent helper class constructor telling it to verbosely report to stderr.
             ConsumingDeviceAgent(deviceInfo, /*enableOutput*/ true),
-            m_objectDetector(std::make_unique<Classifier>(pluginHomeDir)) {
+            m_objectDetector(std::make_unique<YOLO11Detector>(pluginHomeDir)),
+            m_objectClassifier(std::make_unique<YOLO11Classifier>(pluginHomeDir)),
+            m_objectTracker(std::make_unique<ObjectTracker>()) {
     }
 
     DeviceAgent::~DeviceAgent() {
@@ -86,7 +89,7 @@ namespace nx_meta_plugin {
  * Called when the Server sends a new uncompressed frame from a camera.
  */
     bool DeviceAgent::pushUncompressedVideoFrame(const IUncompressedVideoFrame *videoFrame) {
-        m_terminated = m_terminated || m_objectDetector->isTerminated();
+        m_terminated = m_terminated || m_objectDetector->isTerminated() || m_objectClassifier->isTerminated();
         if (m_terminated) {
             if (!m_terminatedPrevious) {
                 pushPluginDiagnosticEvent(
@@ -103,14 +106,14 @@ namespace nx_meta_plugin {
         // Detecting objects only on every `kDetectionFramePeriod` frame.
         if (m_frameIndex % kDetectionFramePeriod == 0) {
             const MetadataPacketList metadataPackets = processFrame(videoFrame);
-            for (const Ptr <IMetadataPacket> &metadataPacket: metadataPackets) {
+            for (const Ptr<IMetadataPacket> &metadataPacket: metadataPackets) {
                 metadataPacket->addRef();
                 pushMetadataPacket(metadataPacket.get());
             }
         }
 
         ++m_frameIndex;
-        NX_PRINT << "ZZZZ: ";
+
         return true;
     }
 
@@ -122,6 +125,7 @@ namespace nx_meta_plugin {
 
         try {
             m_objectDetector->ensureInitialized();
+            m_objectClassifier->ensureInitialized();
         }
         catch (const ObjectDetectorInitializationError &e) {
             *outValue = {ErrorCode::otherError, new String(e.what())};
@@ -135,7 +139,7 @@ namespace nx_meta_plugin {
 //-------------------------------------------------------------------------------------------------
 // private
 
-    Ptr <IMetadataPacket> DeviceAgent::generateEventMetadataPacket() {
+    Ptr<IMetadataPacket> DeviceAgent::generateEventMetadataPacket() {
         // Generate event every kTrackFrameCount'th frame.
         if (m_frameIndex % kTrackFrameCount != 0)
             return nullptr;
@@ -157,14 +161,13 @@ namespace nx_meta_plugin {
 
         eventMetadataPacket->addItem(eventMetadata.get());
 
-        // Generate index and track id for the next track.
+        // Generate index for the next track.
         ++m_trackIndex;
-        m_trackId = nx::sdk::UuidHelper::randomUuid();
 
         return eventMetadataPacket;
     }
 
-    Ptr <ObjectMetadataPacket> DeviceAgent::detectionsToObjectMetadataPacket(
+    Ptr<ObjectMetadataPacket> DeviceAgent::detectionsToObjectMetadataPacket(
             const DetectionList &detections,
             int64_t timestampUs) {
         if (detections.empty())
@@ -201,23 +204,68 @@ namespace nx_meta_plugin {
         return objectMetadataPacket;
     }
 
+    void DeviceAgent::reinitializeObjectTrackerOnFrameSizeChanges(const Frame &frame) {
+        const bool frameSizeUnset = m_previousFrameWidth == 0 && m_previousFrameHeight == 0;
+        if (frameSizeUnset) {
+            m_previousFrameWidth = frame.width;
+            m_previousFrameHeight = frame.height;
+            return;
+        }
+
+        const bool frameSizeChanged = frame.width != m_previousFrameWidth ||
+                                      frame.height != m_previousFrameHeight;
+        if (frameSizeChanged) {
+            m_objectTracker = std::make_unique<ObjectTracker>();
+            m_previousFrameWidth = frame.width;
+            m_previousFrameHeight = frame.height;
+        }
+    }
+
     DeviceAgent::MetadataPacketList DeviceAgent::processFrame(
             const IUncompressedVideoFrame *videoFrame) {
         const Frame frame(videoFrame, m_frameIndex);
+        reinitializeObjectTrackerOnFrameSizeChanges(frame);
 
         try {
-            DetectionList detections = m_objectDetector->run(frame);
+            cv::Mat image = frame.cvMat;
+            DetectionList detections = m_objectDetector->run(image);
+            detections = m_objectTracker->run(frame, detections);
+
+            std::cout << "Number people: " << detections.size() << std::endl;
+            const cv::Size originalImageSize = image.size();
+            for (auto detection: detections) {
+                cv::Rect boundingBox = nxRectToCvRect(detection->boundingBox, originalImageSize.width,
+                                                      originalImageSize.height);
+                cv::Mat cropped_image = image(boundingBox).clone();
+                cv::resize(cropped_image, cropped_image, cv::Size(640, 640));
+                std::string classLabel = m_objectClassifier->run(image);
+                detection->classLabel = classLabel;
+                std::cout << "label: " << detection->classLabel << std::endl;
+            }
+
+//            if (!detections.empty()) {
+//                drawBoundingBox(image, detections[0]);
+//            }
+
             const auto &objectMetadataPacket =
                     detectionsToObjectMetadataPacket(detections, frame.timestampUs);
             MetadataPacketList result;
             if (objectMetadataPacket)
                 result.push_back(objectMetadataPacket);
+            std::cout << "Number objectMetadataPacket: " << result.size() << std::endl;
             return result;
         }
         catch (const ObjectDetectionError &e) {
             pushPluginDiagnosticEvent(
                     IPluginDiagnosticEvent::Level::error,
                     "Object detection error.",
+                    e.what());
+            m_terminated = true;
+        }
+        catch (const ObjectTrackingError &e) {
+            pushPluginDiagnosticEvent(
+                    IPluginDiagnosticEvent::Level::error,
+                    "Object tracking error.",
                     e.what());
             m_terminated = true;
         }

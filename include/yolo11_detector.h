@@ -29,9 +29,9 @@
 namespace nx_meta_plugin {
     class YOLO11Detector {
     public:
-        explicit YOLO11Detector();
+        explicit YOLO11Detector(std::filesystem::path modelDir);
 
-        void ensureInitialized(std::filesystem::path modelPath);
+        void ensureInitialized();
 
         bool isTerminated() const;
 
@@ -40,7 +40,7 @@ namespace nx_meta_plugin {
         DetectionList run(const cv::Mat &frame);
 
     private:
-        void loadModel(std::filesystem::path modelPath);
+        void loadModel();
 
         DetectionList runImpl(const cv::Mat &frame);
 
@@ -55,6 +55,7 @@ namespace nx_meta_plugin {
         bool m_netLoaded = false;
         bool m_terminated = false;
         bool useGPU = false;
+        std::filesystem::path m_modelDir;
 
         Ort::Env env{nullptr};                         // ONNX Runtime environment
         Ort::SessionOptions sessionOptions{nullptr};   // Session options for ONNX Runtime
@@ -69,6 +70,5 @@ namespace nx_meta_plugin {
         std::vector<const char *> outputNames;
 
         size_t numInputNodes, numOutputNodes;          // Number of input and output nodes in the model
-        nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
     };
 }

@@ -15,7 +15,6 @@ namespace nx_meta_plugin {
     extern const std::vector<std::string> kClassesToClassification;
 
     struct Detection {
-//        const cv::Rect boundingBox;
         const nx::sdk::analytics::Rect boundingBox;
         std::string classLabel;
         const float confidence;

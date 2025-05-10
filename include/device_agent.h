@@ -10,7 +10,10 @@
 #include <nx/sdk/ptr.h>
 
 #include "engine.h"
-#include "classifer.h"
+#include "yolo11_detector.h"
+#include "yolo11_classifier.h"
+#include "object_tracker.h"
+
 
 namespace nx_meta_plugin {
     class DeviceAgent : public nx::sdk::analytics::ConsumingDeviceAgent {
@@ -29,12 +32,13 @@ namespace nx_meta_plugin {
 
         virtual bool pushUncompressedVideoFrame(
                 const nx::sdk::analytics::IUncompressedVideoFrame *videoFrame) override;
-
         virtual void doSetNeededMetadataTypes(
                 nx::sdk::Result<void> *outValue,
                 const nx::sdk::analytics::IMetadataTypes *neededMetadataTypes) override;
 
     private:
+        void reinitializeObjectTrackerOnFrameSizeChanges(const Frame &frame);
+
         nx::sdk::Ptr <nx::sdk::analytics::IMetadataPacket> generateEventMetadataPacket();
 
         nx::sdk::Ptr <nx::sdk::analytics::ObjectMetadataPacket> detectionsToObjectMetadataPacket(
@@ -62,13 +66,19 @@ namespace nx_meta_plugin {
     private:
         bool m_terminated = false;
         bool m_terminatedPrevious = false;
-        const std::unique_ptr<Classifier> m_objectDetector;
-        nx::sdk::Uuid m_trackId = nx::sdk::UuidHelper::randomUuid();
+        const std::unique_ptr<YOLO11Detector> m_objectDetector;
+        const std::unique_ptr<YOLO11Classifier> m_objectClassifier;
+        std::unique_ptr<ObjectTracker> m_objectTracker;
         int m_frameIndex = 0; /**< Used for generating the detection in the right place. */
         int m_trackIndex = 0; /**< Used in the description of the events. */
 
         // Used for checking whether the frame size changed, and for reinitializing the tracker.
         int64_t m_lastVideoFrameTimestampUs = 0;
+
+        /** Used for checking whether frame size changed and reinitializing the tracker. */
+
+        int m_previousFrameWidth = 0;
+        int m_previousFrameHeight = 0;
     };
 
 }

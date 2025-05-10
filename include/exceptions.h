@@ -27,6 +27,14 @@ namespace nx_meta_plugin {
         using ObjectDetectorError::ObjectDetectorError;
     };
 
+    class ObjectTrackerError : public Error {
+        using Error::Error;
+    };
+
+    class ObjectTrackingError : public ObjectTrackerError {
+        using ObjectTrackerError::ObjectTrackerError;
+    };
+
     inline std::string cvExceptionToStdString(const cv::Exception &e) {
         return "OpenCV error: " + e.err + " (error code: " + std::to_string(e.code) + ")";
     }

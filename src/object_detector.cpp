@@ -87,10 +87,9 @@ namespace nx_meta_plugin {
             throw ObjectDetectorInitializationError("Loading model: network is empty.");
     }
 
-    std::shared_ptr <Detection> convertRawDetectionToDetection(
+    std::shared_ptr<Detection> convertRawDetectionToDetection(
             const Mat &rawDetections,
-            int detectionIndex,
-            const nx::sdk::Uuid trackId) {
+            int detectionIndex) {
         enum class OutputIndex {
             classIndex = 1,
             confidence = 2,
@@ -120,7 +119,7 @@ namespace nx_meta_plugin {
                     /*boundingBox*/ nx::sdk::analytics::Rect(xBottomLeft, yBottomLeft, width, height),
                                     classLabel,
                                     confidence,
-                                    trackId
+                    /*trackId*/ nx::sdk::Uuid() //< Will be filled with real value in ObjectTracker.
             });
         }
         return nullptr;
@@ -154,16 +153,11 @@ namespace nx_meta_plugin {
         DetectionList result;
 
         for (int i = 0; i < detections.rows; ++i) {
-            const std::shared_ptr <Detection> detection = convertRawDetectionToDetection(
-                    /*rawDetections*/ detections,
-                    /*detectionIndex*/ i,
-                    /*trackId*/ m_trackId);
-            if (detection) {
+            const std::shared_ptr<Detection> detection = convertRawDetectionToDetection(detections, i);
+            if (detection)
                 result.push_back(detection);
-                return result;
-            }
         }
 
-        return {};
+        return result;
     }
 }
