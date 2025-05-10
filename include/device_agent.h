@@ -52,9 +52,6 @@ namespace nx_meta_plugin {
         const std::string kPersonObjectType = "nx.base.Person";
         const std::string kCatObjectType = "nx.base.Cat";
         const std::string kDogObjectType = "nx.base.Dog";
-        const std::string kConganObjectType = "sample.opencv_object_detection.Congan";
-        const std::string kPhamnhanObjectType = "sample.opencv_object_detection.Phamnhan";
-        const std::string kUnknownObjectType = "sample.opencv_object_detection.Unknown";
         const std::string kNewTrackEventType = "nx.sample.newTrack";
 
         /** Length of the the track (in frames). The value was chosen arbitrarily. */

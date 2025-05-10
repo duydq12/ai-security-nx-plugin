@@ -36,7 +36,7 @@ namespace nx_meta_plugin {
     "description": ")json"
                                         "This plugin is for object detection and tracking. It's based on OpenCV."
                                         R"json(",
-    "version": "1.0.15",
+    "version": "1.0.22",
     "vendor": "duydq"
 }
 )json";
