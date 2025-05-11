@@ -182,12 +182,22 @@ namespace nx_meta_plugin {
             else if (detection->classLabel == "CA") {
                 objectMetadata->setTypeId(kPersonObjectType);
                 objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "CA"));
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "TrackID",
+                                                                         UuidHelper::toStdString(detection->trackId)));
+                objectMetadata->addAttribute(makePtr<Attribute>(Attribute::Type::string, "nx.sys.color", "Green"));
             } else if (detection->classLabel == "PN") {
                 objectMetadata->setTypeId(kPersonObjectType);
                 objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "PN"));
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "TrackID",
+                                                                         UuidHelper::toStdString(detection->trackId)));
+                objectMetadata->addAttribute(makePtr<Attribute>(Attribute::Type::string, "nx.sys.color", "Red"));
             } else if (detection->classLabel == "Unknown") {
                 objectMetadata->setTypeId(kPersonObjectType);
+                objectMetadata->setSubtype("Unknown");
                 objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "Type", "Unknown"));
+                objectMetadata->addAttribute(nx::sdk::makePtr<Attribute>(IAttribute::Type::string, "TrackID",
+                                                                         UuidHelper::toStdString(detection->trackId)));
+                objectMetadata->addAttribute(makePtr<Attribute>(Attribute::Type::string, "nx.sys.color", "Yellow"));
             }
             // There is no "else", because only the detections with those types are generated.
 
